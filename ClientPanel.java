@@ -28,6 +28,12 @@ public class ClientPanel extends JPanel implements Runnable, KeyListener, MouseL
 
     public static ArrayList<Player> players = new ArrayList<>();
 
+    public static ArrayList<Effect> effects = new ArrayList<>();
+    public static ArrayList<Effect> effectsInQueue = new ArrayList<>();
+
+    public static ArrayList<Bullet> bullets = new ArrayList<>();
+    public static ArrayList<Bullet> bulletsInQueue = new ArrayList<>();
+
     public static boolean up = false, down = false, left = false, right = false;
     public static boolean punching = false;
 
@@ -100,10 +106,53 @@ public class ClientPanel extends JPanel implements Runnable, KeyListener, MouseL
         }
     }
 
+    public static void eraseAllPlayers() {
+        while (players.size() >= 2) {
+            players.remove(1);
+        }
+    }
+
     private void gameUpdate() {
+        if (players.size() >= 2) {
+            Client.lastMessageCD--;
+            if (Client.lastMessageCD < 0) {
+                Client.lastMessageCD = 20;
+                eraseAllPlayers();
+            }
+        }
         try {
-            for (Player player : players)
+
+            if(players.size() > 0) CollisionDetection.playerExplosionDetection(players.get(0),effects);
+            if(players.size() > 0) CollisionDetection.playerBulletCollision(players,bullets);
+
+            ArrayList<Player> deletedPlayers = new ArrayList<>();
+
+            int index = 0;
+            for (Player player : players) {
                 player.update();
+                if (index != 0 && player.getStrikes() > 5)
+                    deletedPlayers.add(player);
+                index++;
+            }
+
+            ArrayList<Effect> deletedEffects = new ArrayList<>();
+
+            for (Effect effect : effects) {
+                effect.update();
+                if (effect.shouldRemove()) deletedEffects.add(effect);
+            }
+
+            ArrayList<Bullet> deletedBullets = new ArrayList<>();
+
+            for (Bullet bullet : bullets) {
+                bullet.update();
+                if(bullet.shouldRemove()) deletedBullets.add(bullet);
+            }
+
+            players.removeAll(deletedPlayers);
+            effects.removeAll(deletedEffects);
+            bullets.removeAll(deletedBullets);
+
         } catch (ConcurrentModificationException ignore) {
 
         }
@@ -140,11 +189,19 @@ public class ClientPanel extends JPanel implements Runnable, KeyListener, MouseL
                     System.out.println("opponents never intitilaiized");
                 }
             }
+
+            for (Effect effect : effects)
+                effect.draw(g);
+
+            for (Bullet bullet : bullets)
+                bullet.draw(g);
+
             if (players.size() > 0) players.get(0).draw(g);
 
         } catch (ConcurrentModificationException ignore) {
             //This exists because the program dynamically inserts objects while repainting, cannot be fixed
         }
+
     }
 
     private void gameDraw() {
@@ -178,8 +235,8 @@ public class ClientPanel extends JPanel implements Runnable, KeyListener, MouseL
                     ioException.printStackTrace();
                 }
             } else if (e.getKeyChar() == '\b') {
-                if(Client.username.length() > 0)
-                    Client.username.delete(Client.username.length()-1,Client.username.length());
+                if (Client.username.length() > 0)
+                    Client.username.delete(Client.username.length() - 1, Client.username.length());
             } else {
                 Client.username.append(e.getKeyChar());
             }
@@ -209,6 +266,22 @@ public class ClientPanel extends JPanel implements Runnable, KeyListener, MouseL
     @Override
     public void mousePressed(MouseEvent e) {
         punching = true;
+
+        if (!players.get(0).getWeapon().equals("none")) {
+            switch (players.get(0).getWeapon()) {
+                case "rpg":
+                    double weaponMouthX = players.get(0).getX() + Math.cos(players.get(0).getDirectionFacing() + Math.toRadians(50)) * 25;
+                    double weaponMouthY = players.get(0).getY() + Math.sin(players.get(0).getDirectionFacing() + Math.toRadians(50)) * 25;
+
+                    if(players.get(0).useAmmo(4)) {
+                        Bullet sus = new Bullet(weaponMouthX, weaponMouthY, players.get(0).getDirectionFacing(), 4, 105, 72, 7, true);
+
+                        bullets.add(sus);
+                        bulletsInQueue.add(sus);
+                    }
+
+            }
+        }
     }
 
     @Override

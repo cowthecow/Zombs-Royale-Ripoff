@@ -1,9 +1,15 @@
 package com.laserinfinite.java;
 
 import java.awt.*;
+import java.util.ArrayList;
 
 public class Player {
 
+    //rewrite ideas:
+    //abstract class "Entity" and abstract class "Effect"
+    //bullets have health but don't give crap about collision detection
+    //explosion and other crap extends "Effect"
+    //players and bullets and more are all entities
 
     //bug: since shades don't have angles, the "shoulder" for drawing arms is cursed and sticks out of the back of the player's body
 
@@ -26,10 +32,26 @@ public class Player {
     private boolean rightRetract = false;
     private int previousPunch = 0;
     private int cooldown = 0;
+    private int bloodCooldown = 0;
+    private int amountOfFists = 0;
 
     public double health;
     public double shield;
+    public double expiryDate = 10;
     private boolean shadePlayer;
+    private String weapon;
+    private int strikes = 0;
+    private int rpgStatus = 0;
+
+    //4 Types of ammo
+    //Size 1 ammo
+    //Size 2 ammo
+    //Size 3 ammo
+    //Large (Size 4) ammo
+    //Special ammo (For admins only)
+    //Shotty ammo
+
+    private int size4Ammo = 2;
 
     public Player(String username, double x, double y, String identity, boolean shade) {
         this.username = username;
@@ -38,10 +60,50 @@ public class Player {
         this.health = 2;
         this.shield = 0;
         this.shadePlayer = shade;
+        this.weapon = "rpg";
 
         //No two players can have same ID
         this.identity = identity;
         Player.unreservedID++;
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                for (; ; ) {
+                    size4Ammo++;
+                    try {
+                        Thread.sleep(6000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        }).start();
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                for (; ; ) {
+                    rpgStatus++;
+                    rpgStatus %= 2
+
+
+                    ;
+                }
+            }
+        }).start();
+    }
+
+    public String getWeapon() {
+        return weapon;
+    }
+
+    public void setWeapon(String weapon) {
+        this.weapon = weapon;
+    }
+
+    public String getUsername() {
+        return username;
     }
 
     public String getID() {
@@ -60,6 +122,17 @@ public class Player {
         return y;
     }
 
+    public void strike() {
+        this.strikes++;
+    }
+
+    public void resetStrikes() {
+        this.strikes = 0;
+    }
+
+    public int getStrikes() {
+        return this.strikes;
+    }
 
     public Point getLeftFist() {
         return this.leftFist;
@@ -85,6 +158,10 @@ public class Player {
         this.y = y;
     }
 
+    public void lowerHealth(int amount) {
+        this.health -= amount;
+    }
+
     public void setLeftFist(Point leftFist) {
         this.leftFist = leftFist;
     }
@@ -97,13 +174,67 @@ public class Player {
         return new Point((int) this.x, (int) this.y);
     }
 
+    public double getDirectionFacing() {
+        return directionFacing;
+    }
+
+    public void setDirectionFacing(double directionFacing) {
+        this.directionFacing = directionFacing;
+    }
+
     public void shiftLocation(int cx, int cy) {
         this.x += cx;
         this.y += cy;
     }
 
+    public ArrayList<Effect> feelPunches(ArrayList<Point> fistLocations) {
+        ArrayList<Effect> effects = new ArrayList<>();
+        for (Point fist : fistLocations) {
+            if (Client.getDistanceBetweenPoints(fist, new Point((int) this.x, (int) this.y)) <= 40) {
+                this.health -= 1;
+                this.shield -= 1;
+
+                if (bloodCooldown == 0) {
+                    Effect susBlood = new Effect(fist.getX(), fist.getY(), 70, 0.3, 0, new Color(255, 64, 0));
+                    ClientPanel.effects.add(susBlood);
+                    effects.add(susBlood);
+                    bloodCooldown = 10;
+                } else {
+                    bloodCooldown--;
+                }
+
+            }
+        }
+        amountOfFists = fistLocations.size();
+        return effects;
+    }
+
+    public void leftRetract() {
+        this.leftRetract = true;
+        this.leftPunching = false;
+    }
+
+    public void rightRetract() {
+        this.rightRetract = true;
+        this.rightPunching = false;
+    }
+
+    public void setAmmo(int type1, int type2, int type3, int type4, int shotty) {
+        this.size4Ammo = type4;
+    }
+
+    public boolean useAmmo(int type) {
+        switch (type) {
+            case 4:
+                if (size4Ammo > 0) size4Ammo--;
+                else return false;
+                break;
+        }
+        return true;
+    }
+
     public void update() {
-        if(shadePlayer) return;
+        if (shadePlayer) return;
 
         if (health < 100)
             health += 0.2;
@@ -143,23 +274,36 @@ public class Player {
         directionFacing = Math.toRadians(Client.getAngleBetweenPoints(new Point((int) (mouseX), (int) mouseY), new Point((int) x, (int) y)));
 
         double leftFistX, leftFistY;
-        leftFistX = this.x + (Math.cos(directionFacing - Math.PI / 5) * 30);
-        leftFistY = this.y + (Math.sin(directionFacing - Math.PI / 5) * 30);
-
-        leftFistX += Math.cos(directionFacing) * leftFistExtension;
-        leftFistY += Math.sin(directionFacing) * leftFistExtension;
-
-        leftFist = new Point((int) leftFistX, (int) leftFistY);
-
         double rightFistX, rightFistY;
-        rightFistX = this.x + (Math.cos(directionFacing + Math.PI / 5) * 30);
-        rightFistY = this.y + (Math.sin(directionFacing + Math.PI / 5) * 30);
 
-        rightFistX += Math.cos(directionFacing) * rightFistExtension;
-        rightFistY += Math.sin(directionFacing) * rightFistExtension;
+        if (weapon.equals("none")) {
 
-        rightFist = new Point((int) rightFistX, (int) rightFistY);
+            leftFistX = this.x + (Math.cos(directionFacing - Math.PI / 5) * 30);
+            leftFistY = this.y + (Math.sin(directionFacing - Math.PI / 5) * 30);
 
+            leftFistX += Math.cos(directionFacing) * leftFistExtension;
+            leftFistY += Math.sin(directionFacing) * leftFistExtension;
+
+            leftFist = new Point((int) leftFistX, (int) leftFistY);
+
+            rightFistX = this.x + (Math.cos(directionFacing + Math.PI / 5) * 30);
+            rightFistY = this.y + (Math.sin(directionFacing + Math.PI / 5) * 30);
+
+            rightFistX += Math.cos(directionFacing) * rightFistExtension;
+            rightFistY += Math.sin(directionFacing) * rightFistExtension;
+
+            rightFist = new Point((int) rightFistX, (int) rightFistY);
+        } else if (weapon.equals("rpg")) {
+            leftFistX = this.x + (Math.cos(directionFacing + 0.21) * 45);
+            leftFistY = this.y + (Math.sin(directionFacing + 0.21) * 45);
+
+            leftFist = new Point((int) leftFistX, (int) leftFistY);
+
+            rightFistX = this.x + (Math.cos(directionFacing + Math.PI / 5) * 30);
+            rightFistY = this.y + (Math.sin(directionFacing + Math.PI / 5) * 30);
+
+            rightFist = new Point((int) rightFistX, (int) rightFistY);
+        }
 
         if (this.x - this.size < 0) {
             this.x = this.size;
@@ -220,35 +364,66 @@ public class Player {
         //sus amogus baka
         //Here is a paragraph on the constant e.
         //E is a stupid useless mathematical constant. It is so stupid and useless because it is so overrated and literally no one uses it for mathematical proofs. The end.
-        Point leftShoulder = new Point((int) (this.x + (Math.cos(directionFacing - Math.PI / 5) * 30)), (int) (this.y + (Math.sin(directionFacing - Math.PI / 5) * 30)));
-        Point rightShoulder = new Point((int) (this.x + (Math.cos(directionFacing + Math.PI / 5) * 30)), (int) (this.y + (Math.sin(directionFacing + Math.PI / 5) * 30)));
 
-        g.setStroke(new BasicStroke(3));
-        g.setColor(new Color(255, 192, 128));
-        g.fillOval(leftFist.x - 10, leftFist.y - 10, 20, 20);
-        g.fillOval(rightFist.x - 10, rightFist.y - 10, 20, 20);
-        g.setColor(new Color(0, 0, 0));
-        g.drawOval(leftFist.x - 10, leftFist.y - 10, 20, 20);
-        g.drawOval(rightFist.x - 10, rightFist.y - 10, 20, 20);
+        Point leftShoulder = new Point(), rightShoulder = new Point();
 
-        g.setStroke(new BasicStroke(10));
-        g.setColor(new Color(255, 192, 128));
-        g.drawLine(leftShoulder.x, leftShoulder.y, leftFist.x, leftFist.y);
-        g.drawLine(rightShoulder.x, rightShoulder.y, rightFist.x, rightFist.y);
+        if (this.weapon.equals("none")) {
+            leftShoulder = new Point((int) (this.x + (Math.cos(directionFacing - Math.PI / 5) * 30)), (int) (this.y + (Math.sin(directionFacing - Math.PI / 5) * 30)));
+            rightShoulder = new Point((int) (this.x + (Math.cos(directionFacing + Math.PI / 5) * 30)), (int) (this.y + (Math.sin(directionFacing + Math.PI / 5) * 30)));
+        } else if (this.weapon.equals("rpg")) {
+            leftShoulder = new Point((int) (this.x + (Math.cos(directionFacing) * 30)), (int) (this.y + (Math.sin(directionFacing) * 30)));
+            rightShoulder = new Point((int) (this.x + (Math.cos(directionFacing + Math.PI / 5) * 30)), (int) (this.y + (Math.sin(directionFacing + Math.PI / 5) * 30)));
+        }
 
-        g.setStroke(new BasicStroke(3));
-        g.setColor(new Color(255, 192, 128));
-        g.fillOval((int) this.x - size, (int) this.y - size, size * 2, size * 2);
-        g.setColor(new Color(0, 0, 0));
-        g.drawOval((int) this.x - size, (int) this.y - size, size * 2, size * 2);
+        if (!username.equals("Laser Infinite")) {
+            g.setStroke(new BasicStroke(3));
+            g.setColor(new Color(255, 192, 128));
+            g.fillOval(leftFist.x - 10, leftFist.y - 10, 20, 20);
+            g.fillOval(rightFist.x - 10, rightFist.y - 10, 20, 20);
+            g.setColor(new Color(0, 0, 0));
+            g.drawOval(leftFist.x - 10, leftFist.y - 10, 20, 20);
+            g.drawOval(rightFist.x - 10, rightFist.y - 10, 20, 20);
 
+            g.setStroke(new BasicStroke(10));
+            g.setColor(new Color(255, 192, 128));
+            g.drawLine(leftShoulder.x, leftShoulder.y, leftFist.x, leftFist.y);
+            g.drawLine(rightShoulder.x, rightShoulder.y, rightFist.x, rightFist.y);
+
+            g.setStroke(new BasicStroke(3));
+            g.setColor(new Color(255, 192, 128));
+            g.fillOval((int) this.x - size, (int) this.y - size, size * 2, size * 2);
+            g.setColor(new Color(0, 0, 0));
+            g.drawOval((int) this.x - size, (int) this.y - size, size * 2, size * 2);
+
+        } else {
+            g.setStroke(new BasicStroke(5));
+            g.setColor(new Color(225, 225, 225, 128));
+            g.fillOval(leftFist.x - 10, leftFist.y - 10, 20, 20);
+            g.fillOval(rightFist.x - 10, rightFist.y - 10, 20, 20);
+            g.setColor(new Color(0, 128, 128, 128));
+            g.drawOval(leftFist.x - 10, leftFist.y - 10, 20, 20);
+            g.drawOval(rightFist.x - 10, rightFist.y - 10, 20, 20);
+
+            g.setStroke(new BasicStroke(5));
+            g.setColor(new Color(225, 225, 225, 128));
+            g.fillOval((int) this.x - size, (int) this.y - size, size * 2, size * 2);
+            g.setColor(new Color(0, 128, 128, 128));
+            g.drawOval((int) this.x - size, (int) this.y - size, size * 2, size * 2);
+        }
+
+        if (!this.weapon.equals("none")) {
+            switch (this.weapon) {
+                case "rpg":
+                    Weapon.drawEquippedWeapon(g, this, "rpg", size4Ammo > 0);
+                    break;
+            }
+        }
 
         g.setColor(new Color(0, 0, 0));
         g.fillRoundRect(50, 20, 200, 20, 15, 15);
         g.fillRoundRect(50, 50, 200, 20, 15, 15);
 
-
-        if(!shadePlayer) {
+        if (!shadePlayer) {
             g.setColor(new Color(64, 255, 64, 128));
             g.fillRoundRect(50, 20, (int) health * 2, 20, 15, 15);
 
@@ -263,7 +438,7 @@ public class Player {
 
         g.setStroke(new BasicStroke(1));
         g.setFont(new Font("Bahnschrift", Font.PLAIN, 20));
-        g.drawString(username, (int)(x-30),(int)(y-40));
+        g.drawString(username, (int) (x - 30), (int) (y - 40));
     }
 
 
@@ -278,7 +453,10 @@ public class Player {
                 + rightFist.x + "|"
                 + rightFist.y + "|"
                 + health + "|"
-                + shield + "\n";
+                + shield + "|"
+                + weapon + "|"
+                + directionFacing + "|"
+                + size4Ammo + "\n";
     }
 
     public String toString(String customID) {
@@ -291,6 +469,9 @@ public class Player {
                 + rightFist.x + "|"
                 + rightFist.y + "|"
                 + health + "|"
-                + shield + "\n";
+                + shield + "|"
+                + weapon + "|"
+                + directionFacing + "|"
+                + size4Ammo + "\n";
     }
 }

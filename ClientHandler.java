@@ -1,12 +1,20 @@
 package com.laserinfinite.java;
 
+import com.sun.xml.internal.ws.policy.privateutil.PolicyUtils;
+
 import javax.sound.sampled.*;
 import java.io.*;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.ConcurrentModificationException;
 
 public class ClientHandler implements Runnable {
+
+
+    //New algorithm
+    //Afk detector for identities, because identities are now much more stable with bugs fixed
+    //A map is used which maps identities to player index
 
     public static ArrayList<ClientHandler> clients = new ArrayList<>();
     private Socket socket;
@@ -15,39 +23,28 @@ public class ClientHandler implements Runnable {
     private BufferedWriter bufferedWriter;
     private String username;
     private static int unusedIdentity = 100000;
+    public static int lastUsedIdentity = 100000;
+    public static int usedTries = 0;
 
-    public ClientHandler(Socket socket) {
+    public static int identity = 100000;
+
+    public ClientHandler(Socket socket, int newIdentity) {
         try {
             this.socket = socket;
             this.bufferedWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
             this.bufferedReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            this.username = bufferedReader.readLine();
 
             clients.add(this);
 
-            broadcastMessage("setidentity|" + unusedIdentity);
+            System.out.println(" A client handler is starting..");
+
+            broadcastMessage("setidentity|" + String.valueOf(100000+newIdentity));
+            lastUsedIdentity = 100000+newIdentity;
+
             playNoise("discordPing");
-            unusedIdentity++;
         } catch (IOException e) {
-            //broadcastMessage("SERVER:" + username + " got kicked out of the chat!");
             closeAll(socket, bufferedReader, bufferedWriter);
         }
-
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    for(int i = 0; i < 100; i++) {
-                        Thread.sleep(1000);
-                        unusedIdentity++;
-                        broadcastMessage("setidentity|" + unusedIdentity);
-                    }
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-                System.out.println("bitch, this is over");
-            }
-        }).start();
     }
 
     static void playNoise(String soundFile) {
@@ -83,6 +80,10 @@ public class ClientHandler implements Runnable {
         }
     }
 
+    public static void setClientInfo(int identity) {
+        lastUsedIdentity = identity;
+    }
+
     public String getUsername() {
         return this.username;
     }
@@ -90,7 +91,10 @@ public class ClientHandler implements Runnable {
     public void broadcastMessage(String message) {
         try {
             for (ClientHandler clientHandler : clients) {
-                if (clientHandler.equals(this)) continue;
+                if (clientHandler.equals(this)) {
+                    if(message != null)
+                        if(!message.contains("setidentity|"))continue;
+                }
                 try {
                     if (message != null) {
                         clientHandler.bufferedWriter.write(message);

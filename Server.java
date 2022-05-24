@@ -3,8 +3,10 @@ package com.laserinfinite.java;
 import javax.swing.*;
 import java.awt.*;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.UnknownHostException;
 
 public class Server extends JPanel {
 
@@ -17,7 +19,7 @@ public class Server extends JPanel {
     private boolean angleIncreasing = true;
     public static int playerCount = 0;
 
-    public Server(ServerSocket serverSocket) {
+    public Server(ServerSocket serverSocket) throws UnknownHostException {
         this.serverSocket = serverSocket;
 
         frame.getContentPane().add(this);
@@ -27,6 +29,8 @@ public class Server extends JPanel {
         frame.setLocationRelativeTo(null);
         frame.setResizable(false);
         frame.setVisible(true);
+
+        System.out.println(InetAddress.getLocalHost().getHostAddress());
     }
 
     public void startServer() {
@@ -36,7 +40,9 @@ public class Server extends JPanel {
                 try {
                     while (!serverSocket.isClosed()) {
                         Socket socket = serverSocket.accept();
-                        ClientHandler clientHandler = new ClientHandler(socket);
+                        System.out.println("A new player has joined! ");
+                        playerCount++;
+                        ClientHandler clientHandler = new ClientHandler(socket, playerCount);
                         new Thread(clientHandler).start();
                     }
                 } catch (IOException e) {
